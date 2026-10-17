@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 r"""email_preview.py FILE.html [--out DIR] [--widths 700,390]
 
-Render an HTML email the ways a recipient can actually receive it, in an
+Render an HTML email in Chromium under simulated viewing conditions, in an
 isolated headless Chrome (its own debug port and scratch profile, so it never
 touches a browser you are using).
 
 For each width it captures:
     <name>-<w>-light.png   normal
     <name>-<w>-dark.png    prefers-color-scheme: dark emulated
-    <name>-<w>-noimg.png   every <img> src broken, i.e. images blocked (the
-                           DEFAULT in Outlook and in Gmail for unknown
-                           senders) -- this is the render that decides whether
+    <name>-<w>-noimg.png   every <img> src broken, a simulation of a client
+                           that blocks images (many clients can block
+                           remote images) -- this is the render that decides whether
                            the email still makes sense, so it is not optional
-and reports horizontal overflow plus the image/text ratio, the two things that
-break an email in the wild. Exit code 1 if any width overflows.
+and prints, per render, horizontal overflow, the image count, the image area and
+the visible text length. Exit code 1 if any width overflows.
 
-Requires: Python 3.8+, the websocket-client package, and a Chrome or Chromium
+Requires: Python 3.10+, the websocket-client package, and a Chrome or Chromium
 binary (set CHROME_PATH if it is somewhere unusual).
 """
 import argparse, base64, json, os, shutil, subprocess, tempfile, time
@@ -76,7 +76,15 @@ class Chrome:
     """
 
     def __init__(self):
+        self.proc = self.ws = None
         self.profile = tempfile.mkdtemp(prefix="emailprev-")
+        try:
+            self._start()
+        except BaseException:
+            self.close()                   # never leak the browser or its scratch profile on a failed start
+            raise
+
+    def _start(self):
         self.proc = subprocess.Popen(
             [find_chrome(), "--remote-debugging-port=0",
              "--user-data-dir=%s" % self.profile, "--headless=new",
@@ -114,17 +122,19 @@ class Chrome:
                 return m
 
     def close(self):
-        try:
-            self.ws.close()
-        except Exception:
-            pass
-        # terminate only the exact process we started, by handle
-        for fn in (self.proc.terminate, self.proc.kill):
+        if self.ws is not None:
             try:
-                fn()
-                time.sleep(0.4)
+                self.ws.close()
             except Exception:
                 pass
+        # terminate only the exact process we started, by handle
+        if self.proc is not None:
+            for fn in (self.proc.terminate, self.proc.kill):
+                try:
+                    fn()
+                    time.sleep(0.4)
+                except Exception:
+                    pass
         shutil.rmtree(self.profile, ignore_errors=True)
 
 
@@ -178,8 +188,8 @@ def shoot(ch, url, width, out, dark=False, noimg=False):
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Render an HTML email the ways recipients actually "
-                    "receive it: light, dark, images blocked, per width.")
+        description="Render an HTML email in Chromium per width, with light, "
+                    "dark and images-blocked simulations.")
     ap.add_argument("file", help="the HTML email file to render")
     ap.add_argument("--out", help="output directory (default: ./render next "
                                   "to the input file)")

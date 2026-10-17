@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "weio-email-preview"
+version = "0.1.0a2"
+description = "Inspect HTML email layouts in Chromium at several widths and display settings"
+readme = "PACKAGE_README.md"
+requires-python = ">=3.10"
+authors = [{name = "Weio, Inc."}]
+license = {file = "LICENSE"}
+dependencies = ["websocket-client>=1.6,<2"]
+classifiers = ["Private :: Do Not Upload", "Programming Language :: Python :: 3"]
+
+[project.urls]
+Source = "https://github.com/weioai/email-preview"
+Issues = "https://github.com/weioai/email-preview/issues"
+
+[project.scripts]
+weio-email-preview = "email_preview:main"
+
+[tool.setuptools]
+py-modules = ["email_preview"]
